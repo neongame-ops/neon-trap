@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Neon Trap – Ultimate</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  margin: 0;
+  background: black;
+  color: cyan;
+  font-family: Arial;
+  text-align: center;
+}
+canvas {
+  display: block;
+  margin: auto;
+  background: #050505;
+  box-shadow: 0 0 25px cyan;
+}
+</style>
+</head>
+<body>
+
+<h2>NEON TRAP</h2>
+<p>Ultimate Edition</p>
+<canvas id="game" width="400" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let player = { x:200, y:300, size:14, speed:4, shield:false };
+let enemies = [];
+let powerUps = [];
+let boss = null;
+
+let score = 0;
+let multiplier = 1;
+let difficulty = 1;
+let walls = 0;
+let gameOver = false;
+
+let highScore = localStorage.getItem("neonHigh") || 0;
+
+let shake = 0;
+function screenShake() { shake = 10; }
+
+// Sounds
+const hitSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+const powerSound = new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
+
+// Touch movement
+let tx=null, ty=null;
+canvas.addEventListener("touchmove",e=>{
+  tx=e.touches[0].clientX-canvas.offsetLeft;
+  ty=e.touches[0].clientY-canvas.offsetTop;
+});
+
+document.addEventListener("keydown",e=>{
+  if(e.key==="ArrowUp")player.y-=player.speed;
+  if(e.key==="ArrowDown")player.y+=player.speed;
+  if(e.key==="ArrowLeft")player.x-=player.speed;
+  if(e.key==="ArrowRight")player.x+=player.speed;
+});
+
+function spawnEnemy() {
+  enemies.push({
+    x:Math.random()*canvas.width,
+    y:Math.random()*canvas.height,
+    speed:1.5+difficulty*0.4
+  });
+}
+
+function spawnPowerUp() {
+  const types=["slow","dash","shield"];
+  powerUps.push({
+    x:Math.random()*(canvas.width-20),
+    y:Math.random()*(canvas.height-20),
+    type:types[Math.floor(Math.random()*3)]
+  });
+}
+
+function spawnBoss() {
+  boss={ x:50,y:50,size:40,speed:2+difficulty };
+}
+
+setInterval(()=>{ difficulty+=0.3; spawnEnemy(); },3000);
+setInterval(spawnPowerUp,7000);
+setInterval(spawnBoss,30000);
+
+function update() {
+  if(gameOver) return;
+
+  score+=multiplier;
+  multiplier = Math.min(multiplier+0.0005,5);
+
+  ctx.save();
+  if(shake>0){
+    ctx.translate(Math.random()*shake,Math.random()*shake);
+    shake--;
+  }
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  walls+=0.015*difficulty;
+
+  ctx.strokeStyle="cyan";
+  ctx.strokeRect(walls,walls,canvas.width-walls*2,canvas.height-walls*2);
+
+  // Player
+  ctx.fillStyle=player.shield?"yellow":"cyan";
+  ctx.fillRect(player.x,player.y,player.size,player.size);
+
+  if(tx!==null){
+    player.x+=(tx-player.x)*0.06;
+    player.y+=(ty-player.y)*0.06;
+  }
+
+  // Enemies
+  ctx.fillStyle="magenta";
+  enemies.forEach(e=>{
+    let dx=player.x-e.x, dy=player.y-e.y;
+    let d=Math.sqrt(dx*dx+dy*dy);
+    e.x+=(dx/d)*e.speed;
+    e.y+=(dy/d)*e.speed;
+    ctx.fillRect(e.x,e.y,12,12);
+
+    if(Math.abs(e.x-player.x)<12 && Math.abs(e.y-player.y)<12){
+      if(player.shield){ player.shield=false; screenShake(); }
+      else endGame();
+    }
+  });
+
+  // Boss
+  if(boss){
+    ctx.fillStyle="red";
+    let dx=player.x-boss.x, dy=player.y-boss.y;
+    let d=Math.sqrt(dx*dx+dy*dy);
+    boss.x+=(dx/d)*boss.speed;
+    boss.y+=(dy/d)*boss.speed;
+    ctx.fillRect(boss.x,boss.y,boss.size,boss.size);
+
+    if(Math.abs(boss.x-player.x)<boss.size){
+      endGame();
+    }
+  }
+
+  // Power-ups
+  powerUps.forEach((p,i)=>{
+    ctx.fillStyle=p.type==="slow"?"lime":p.type==="dash"?"blue":"yellow";
+    ctx.fillRect(p.x,p.y,14,14);
+
+    if(Math.abs(p.x-player.x)<14){
+      powerSound.play();
+      if(p.type==="slow") difficulty=Math.max(1,difficulty-1);
+      if(p.type==="dash") player.speed+=1;
+      if(p.type==="shield") player.shield=true;
+      powerUps.splice(i,1);
+    }
+  });
+
+  // Walls collision
+  if(player.x<walls||player.y<walls||
+     player.x>canvas.width-walls-player.size||
+     player.y>canvas.height-walls-player.size){
+    endGame();
+  }
+
+  // HUD
+  ctx.fillStyle="white";
+  ctx.fillText("Score: "+Math.floor(score),10,20);
+  ctx.fillText("x"+multiplier.toFixed(1),10,40);
+  ctx.fillText("High: "+highScore,10,60);
+
+  ctx.restore();
+  requestAnimationFrame(update);
+}
+
+function endGame(){
+  hitSound.play();
+  screenShake();
+  gameOver=true;
+  if(score>highScore){
+    highScore=Math.floor(score);
+    localStorage.setItem("neonHigh",highScore);
+  }
+  ctx.fillText("GAME OVER",130,300);
+  ctx.fillText("Tap to Retry",140,330);
+}
+
+canvas.addEventListener("click",()=>{ if(gameOver) location.reload(); });
+
+spawnEnemy();
+update();
+</script>
+
+</body>
+</html>
